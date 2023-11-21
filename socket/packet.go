@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"math"
 	"net"
 )
 
@@ -99,6 +100,13 @@ func (p *PacketReader) ReadUint32() uint32 {
 	p.pos += 4
 
 	return value
+}
+
+// ReadFloat32 reads a float32
+func (p *PacketReader) ReadFloat32() float32 {
+	bits := p.ReadUint32()
+
+	return math.Float32frombits(bits)
 }
 
 // ReadInt32 reads an int32

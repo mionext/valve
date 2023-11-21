@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"hash/crc32"
+	"time"
 
 	"github.com/mionext/valve/socket"
 	"github.com/mionext/valve/types"
@@ -202,8 +203,56 @@ func (c *Client) resolveSourceInfo(r *socket.PacketReader) (*types.Server, error
 }
 
 // TODO: Players gets the server players
-func (c *Client) Players() ([]*types.Player, error) {
-	return nil, nil
+func (c *Client) Players() (*types.PlayerList, error) {
+	data := []byte{0xff, 0xff, 0xff, 0xff, 0x55, 0xff, 0xff, 0xff, 0xff}
+	if err := c.socket.Send(data); err != nil {
+		return nil, err
+	}
+
+	data, err := c.socket.Receive()
+	if err != nil {
+		return nil, err
+	}
+
+	// has challenge
+	if data[4] == 0x41 {
+		reply := []byte{
+			0xff, 0xff, 0xff, 0xff, 0x55,
+			data[5], data[6], data[7], data[8],
+		}
+
+		if err := c.socket.Send(reply); err != nil {
+			return nil, err
+		}
+
+		data, err = c.socket.Receive()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	r := socket.NewPacketReader(data)
+	if !r.CanRead(4) {
+		return nil, errors.New("bad player reply")
+	}
+
+	r.ReadInt32() // drop header
+	if r.ReadUint8() != 0x44 {
+		return nil, errors.New("bad player header")
+	}
+
+	count := int(r.ReadUint8())
+	players := &types.PlayerList{Count: count}
+	for i := 0; i < count; i++ {
+		p := &types.Player{}
+		p.Index = int(r.ReadUint8())
+		p.Name = r.ReadString()
+		p.Score = int(r.ReadUint32())
+		p.Duration = int(r.ReadFloat32())
+		players.Players = append(players.Players, p)
+	}
+
+	return players, nil
 }
 
 func (c *Client) Rules() (map[string]string, error) {
@@ -382,4 +431,24 @@ func (c *Client) decodeMultiPacketHeader(data []byte, s *types.Server) (*MultiPa
 	header.Payload = data[header.Size:]
 
 	return header, nil
+}
+
+// Ping gets the server ping in milliseconds
+func (c *Client) Ping() (uint, error) {
+	start := time.Now()
+	data := []byte{0xff, 0xff, 0xff, 0xff, 0x69}
+	if err := c.socket.Send(data); err != nil {
+		return 0, err
+	}
+
+	data, err := c.socket.Receive()
+	if err != nil {
+		return 0, err
+	}
+
+	if data[4] != 0x6a {
+		return 0, errors.New("bad ping reply")
+	}
+
+	return uint(time.Since(start).Milliseconds()), nil
 }
