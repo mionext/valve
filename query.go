@@ -202,10 +202,10 @@ func (c *Client) resolveSourceInfo(r *socket.PacketReader) (*types.Server, error
 	return s, nil
 }
 
-// TODO: Players gets the server players
+// Players  gets the server players
 func (c *Client) Players() (*types.PlayerList, error) {
-	data := []byte{0xff, 0xff, 0xff, 0xff, 0x55, 0xff, 0xff, 0xff, 0xff}
-	if err := c.socket.Send(data); err != nil {
+	req := []byte{0xff, 0xff, 0xff, 0xff, 0x55, 0xff, 0xff, 0xff, 0xff}
+	if err := c.socket.Send(req); err != nil {
 		return nil, err
 	}
 
@@ -262,12 +262,12 @@ func (c *Client) Rules() (map[string]string, error) {
 	}
 
 	c.Reconnect()
-	data := []byte{0xff, 0xff, 0xff, 0xff, 0x56, 0x00, 0x00, 0x00, 0x00}
-	if err := c.socket.Send(data); err != nil {
+	req := []byte{0xff, 0xff, 0xff, 0xff, 0x56, 0x00, 0x00, 0x00, 0x00}
+	if err := c.socket.Send(req); err != nil {
 		return nil, err
 	}
 
-	data, err = c.socket.Receive()
+	data, err := c.socket.Receive()
 	if err != nil {
 		return nil, err
 	}
@@ -415,7 +415,7 @@ func (c *Client) decodeMultiPacketHeader(data []byte, s *types.Server) (*MultiPa
 	case types.GoldSource:
 		pkt := r.ReadUint8()
 		header.PacketNumber = (pkt >> 4) & 0x0F
-		header.TotalPackets = (pkt & 0x0F)
+		header.TotalPackets = pkt & 0x0F
 	case types.Source:
 		header.Compressed = (header.Id & uint32(0x80000000)) != 0
 		header.TotalPackets = r.ReadUint8()
