@@ -10,51 +10,52 @@ An implementation of [Source A2S Queries](https://developer.valvesoftware.com/wi
 
 ## Querying
 
-```golang
+```go
 package main
 
 import (
-	"fmt"
-	"time"
+  "fmt"
+  "time"
 
-	"github.com/mionext/valve"
+  "github.com/mionext/valve"
 )
 
 func main() {
-	addressess := []string{
-		"62.234.169.62:26666",
-        // ....
-	}
-	for i := 0; i < len(addressess); i++ {
-		c, err := valve.NewClient(addressess[i], 3*time.Second)
-		if err != nil {
-			fmt.Printf("server %s => error: %v\n", addressess[i], err)
-			continue
-		}
+  addressess := []string{
+    "62.234.169.62:26666",
+    // ....
+  }
 
-        // Ping
-		fmt.Println(c.Ping())
+  for i := 0; i < len(addressess); i++ {
+    c, err := valve.NewClient(addressess[i], 3*time.Second)
+    if err != nil {
+      fmt.Printf("server %s => error: %v\n", addressess[i], err)
+      continue
+    }
 
-        // Info
-        // info, _ := c.Info()
-		// infoBytes, _ := json.Marshal(info)
-		// fmt.Println(string(infoBytes))
+    // Ping
+    fmt.Println(c.Ping())
 
-        // Players
-		// pl, _ := c.Players()
-		// fmt.Println(addressess[i], " ==> ", pl.Count)
-		// for _, v := range pl.Players {
-		// 	fmt.Println(v)
-		// }
+    // Info
+    // info, _ := c.Info()
+    // infoBytes, _ := json.Marshal(info)
+    // fmt.Println(string(infoBytes))
 
-        // Rules
-		// rules, err := c.Rules()
-		// rulesBytes, _ := json.Marshal(rules)
+    // Players
+    // pl, _ := c.Players()
+    // fmt.Println(addressess[i], " ==> ", pl.Count)
+    // for _, v := range pl.Players {
+    // 	fmt.Println(v)
+    // }
 
-		// fmt.Println(string(rulesBytes), err)
+    // Rules
+    // rules, err := c.Rules()
+    // rulesBytes, _ := json.Marshal(rules)
 
-		c.Close()
-	}
+    // fmt.Println(string(rulesBytes), err)
+
+    c.Close()
+  }
 }
 
 ```
