@@ -1,7 +1,11 @@
 package valve
 
 import (
+	"bytes"
+	"compress/bzip2"
+	"encoding/binary"
 	"errors"
+	"hash/crc32"
 
 	"github.com/mionext/valve/socket"
 	"github.com/mionext/valve/types"
@@ -195,4 +199,187 @@ func (c *Client) resolveSourceInfo(r *socket.PacketReader) (*types.Server, error
 	}
 
 	return s, nil
+}
+
+// TODO: Players gets the server players
+func (c *Client) Players() ([]*types.Player, error) {
+	return nil, nil
+}
+
+func (c *Client) Rules() (map[string]string, error) {
+	s, err := c.Info()
+	if err != nil {
+		return nil, err
+	}
+
+	c.Reconnect()
+	data := []byte{0xff, 0xff, 0xff, 0xff, 0x56, 0x00, 0x00, 0x00, 0x00}
+	if err := c.socket.Send(data); err != nil {
+		return nil, err
+	}
+
+	data, err = c.socket.Receive()
+	if err != nil {
+		return nil, err
+	}
+
+	// has challenge
+	if data[4] == 0x41 {
+		reply := []byte{
+			0xff, 0xff, 0xff, 0xff, 0x56,
+			data[5], data[6], data[7], data[8],
+		}
+
+		if err := c.socket.Send(reply); err != nil {
+			return nil, err
+		}
+
+		data, err = c.socket.Receive()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	compressed := false
+	switch int32(binary.LittleEndian.Uint32(data[:4])) {
+	case -1: // continue
+	case -2:
+		data, compressed, err = c.waitForMultiPacketReply(data, s)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, errors.New("bad packet header")
+	}
+
+	r := socket.NewPacketReader(data)
+	if compressed {
+		decompressedSize := r.ReadUint32()
+		checksum := r.ReadUint32()
+		if decompressedSize > uint32(1024*1024) {
+			return nil, errors.New("decompressed size too large")
+		}
+
+		decompressed := make([]byte, decompressedSize)
+		bz2Reader := bzip2.NewReader(bytes.NewReader(data[r.Pos():]))
+		n, err := bz2Reader.Read(decompressed)
+		if err != nil {
+			return nil, err
+		}
+
+		if n != int(decompressedSize) {
+			return nil, errors.New("decompressed size mismatch")
+		}
+
+		if crc32.ChecksumIEEE(decompressed) != checksum {
+			return nil, errors.New("checksum mismatch")
+		}
+
+		data = decompressed
+		r = socket.NewPacketReader(data)
+	}
+
+	if r.ReadInt32() != -1 {
+		return nil, errors.New("bad packet header")
+	}
+
+	if r.ReadUint8() != 0x45 {
+		return nil, errors.New("bad rules reply")
+	}
+
+	rules := map[string]string{}
+	count := int(r.ReadUint16())
+	for i := 0; i < count; i++ {
+		key, err := r.TryReadString()
+		if err != nil {
+			break
+		}
+
+		value, err := r.TryReadString()
+		if err != nil {
+			break
+		}
+
+		rules[key] = value
+	}
+
+	return rules, nil
+}
+
+// MultiPacketHeader represents a multi packet header
+func (c *Client) waitForMultiPacketReply(data []byte, s *types.Server) ([]byte, bool, error) {
+	header, err := c.decodeMultiPacketHeader(data, s)
+	if err != nil {
+		return nil, false, err
+	}
+
+	packets := make([]*MultiPacketHeader, header.TotalPackets)
+	received := 0
+	fullSize := 0
+
+	for {
+		if int(header.PacketNumber) >= len(packets) {
+			return nil, false, errors.New("bad packet number")
+		}
+		if packets[header.PacketNumber] != nil {
+			return nil, false, errors.New("duplicate packet")
+		}
+
+		packets[header.PacketNumber] = header
+		fullSize += len(header.Payload)
+		received++
+
+		if received == len(packets) {
+			break
+		}
+
+		data, err := c.socket.Receive()
+		if err != nil {
+			return nil, false, err
+		}
+
+		header, err = c.decodeMultiPacketHeader(data, s)
+		if err != nil {
+			return nil, false, err
+		}
+	}
+
+	payloads := make([]byte, fullSize)
+	cursor := 0
+	for _, header := range packets {
+		copy(payloads[cursor:cursor+len(header.Payload)], header.Payload)
+		cursor += len(header.Payload)
+	}
+
+	return payloads, packets[0].Compressed, nil
+}
+
+func (c *Client) decodeMultiPacketHeader(data []byte, s *types.Server) (*MultiPacketHeader, error) {
+	r := socket.NewPacketReader(data)
+	if r.ReadInt32() != -2 {
+		return nil, errors.New("not a multi packet header")
+	}
+
+	header := &MultiPacketHeader{}
+	header.Id = r.ReadUint32()
+	switch s.Engine() {
+	case types.GoldSource:
+		pkt := r.ReadUint8()
+		header.PacketNumber = (pkt >> 4) & 0x0F
+		header.TotalPackets = (pkt & 0x0F)
+	case types.Source:
+		header.Compressed = (header.Id & uint32(0x80000000)) != 0
+		header.TotalPackets = r.ReadUint8()
+		header.PacketNumber = r.ReadUint8()
+		if r.CanRead(2) {
+			header.PacketSize = r.ReadUint16()
+		}
+	default:
+		return nil, errors.New("unknown game engine")
+	}
+
+	header.Size = r.Pos()
+	header.Payload = data[header.Size:]
+
+	return header, nil
 }

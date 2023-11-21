@@ -25,6 +25,17 @@ func NewUdp(address string, timeout time.Duration) (*Udp, error) {
 	return &Udp{timeout: timeout, addr: address, conn: conn}, nil
 }
 
+func (u *Udp) Connect() error {
+	u.Close()
+	c, err := net.Dial("udp", u.addr)
+	if err != nil {
+		return err
+	}
+
+	u.conn = c
+	return nil
+}
+
 func (u *Udp) SetTimeout(duration time.Duration) {
 	u.timeout = duration
 }
