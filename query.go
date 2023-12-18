@@ -12,6 +12,9 @@ import (
 	"github.com/mionext/valve/types"
 )
 
+const PingReply = 0x6a
+const PingRequest = 0x69
+
 var ErrBadPacketHeader = errors.New("bad packet header")
 var ErrUnknownInfoVersion = errors.New("unknown A2S_INFO version")
 
@@ -436,7 +439,7 @@ func (c *Client) decodeMultiPacketHeader(data []byte, s *types.Server) (*MultiPa
 // Ping gets the server ping in milliseconds
 func (c *Client) Ping() (uint, error) {
 	start := time.Now()
-	data := []byte{0xff, 0xff, 0xff, 0xff, 0x69}
+	data := []byte{0xff, 0xff, 0xff, 0xff, PingRequest}
 	if err := c.socket.Send(data); err != nil {
 		return 0, err
 	}
@@ -446,7 +449,7 @@ func (c *Client) Ping() (uint, error) {
 		return 0, err
 	}
 
-	if data[4] != 0x6a {
+	if data[4] != PingReply {
 		return 0, errors.New("bad ping reply")
 	}
 
