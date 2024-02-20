@@ -57,7 +57,7 @@ func (u *Udp) enforceRateLimit() {
 		return
 	}
 
-	wait := u.next.Sub(time.Now())
+	wait := time.Until(u.next)
 	if wait > 0 {
 		time.Sleep(wait)
 	}
