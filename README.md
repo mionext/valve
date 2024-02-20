@@ -6,7 +6,7 @@ An implementation of [Source A2S Queries](https://developer.valvesoftware.com/wi
 
 ## Installing
 
-`go get -u github.com/mionext/valve`
+`go get -u github.com/oxxzz/valve`
 
 ## Querying
 
@@ -17,7 +17,7 @@ import (
   "fmt"
   "time"
 
-  "github.com/mionext/valve"
+  "github.com/oxxzz/valve"
 )
 
 func main() {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mionext/valve/socket"
+	"github.com/oxzz/valve/socket"
 )
 
 // Client is a client for the Valve source query protocol

@@ -8,8 +8,8 @@ import (
 	"hash/crc32"
 	"time"
 
-	"github.com/mionext/valve/socket"
-	"github.com/mionext/valve/types"
+	"github.com/oxxzz/valve/socket"
+	"github.com/oxxzz/valve/types"
 )
 
 const PingReply = 0x6a
